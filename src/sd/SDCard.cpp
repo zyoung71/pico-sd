@@ -26,6 +26,116 @@ SDCard::~SDCard()
         _insts[_this_inst_idx] = nullptr;
 }
 
+UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path)
+{
+    
+    size_t count = 0;
+    if (f_opendir(&directory, dir_path) != FR_OK)
+        return nullptr;
+
+    FILINFO file_info;
+    while (f_readdir(&directory, &file_info) == FR_OK)
+    {
+        if (file_info.fname[0] == 0)
+            break;
+        
+        count++;
+    }
+
+    UniqueArray<DirectoryEntry> ret = make_unique_array_empty<DirectoryEntry>(count);
+
+    count = 0;
+    f_rewinddir(&directory);
+    while (f_readdir(&directory, &file_info) == FR_OK)
+    {
+        if (file_info.fname[0] == 0)
+            break;
+        
+        DirectoryEntry entry;
+        strncpy(entry.name, file_info.fname, 256);
+        entry.attributes_mask = file_info.fattrib;
+        ret[count++] = entry;
+    }
+    return std::move(ret);
+}
+
+size_t SDCard::GetTotalCountInDirectory(const char* dir_path) 
+{
+    
+    size_t count = 0;
+    if (f_opendir(&directory, dir_path) != FR_OK)
+        return 0;
+    
+    FILINFO f;
+    while (f_readdir(&directory, &f) == FR_OK)
+    {
+        if (f.fname[0] == 0)
+            break;
+        count++;
+    }
+    return count;
+}
+
+size_t SDCard::GetFileCountInDirectory(const char* dir_path)
+{
+    
+    size_t count = 0;
+    if (f_opendir(&directory, dir_path) != FR_OK)
+        return 0;
+    
+    FILINFO f;
+    while (f_readdir(&directory, &f) == FR_OK)
+    {
+        if (f.fname[0] == 0)
+            break;
+        
+        if (f.fattrib & AM_DIR)
+            continue;
+        
+        count++;
+    }
+    return count;
+}
+
+size_t SDCard::GetDirectoryCountInDirectory(const char* dir_path)
+{
+    size_t count = 0;
+    if (f_opendir(&directory, dir_path) != FR_OK)
+        return 0;
+    
+    FILINFO f;
+    while (f_readdir(&directory, &f) == FR_OK)
+    {
+        if (f.fname[0] == 0)
+            break;
+        
+        if (f.fattrib & AM_DIR)
+            count++;
+    }
+    f_closedir(&directory);
+    return count;
+}
+
+bool SDCard::ChangeDirectory(const char* path)
+{
+    return f_chdir(path) == FR_OK;
+}
+
+bool SDCard::CreateDirectory(const char* dir_path)
+{
+    return f_mkdir(dir_path) == FR_OK;
+}
+
+bool SDCard::Move(const char* path, const char* new_path)
+{
+    return f_rename(path, new_path) == FR_OK;
+}
+
+bool SDCard::Rename(const char* name, const char* new_name)
+{
+    return f_rename(name, new_name) == FR_OK;
+}
+
 bool SDCard::Mount()
 {
     if (is_mounted)
@@ -95,12 +205,40 @@ bool SDCard::SeekEnd()
     return false;
 }
 
+uint64_t SDCard::GetFileSize(const char* path) const
+{
+    return GetFileStats(path).fsize;
+}
+
 uint64_t SDCard::GetFileSize() const
 {
     if (is_file_open)
         return f_size(&file);
 
+    return GetFileSize(current_file_path);
+}
+#include "ffconf.h"
+uint64_t SDCard::GetFreeSpace() const
+{
+    DWORD free_clusters;
+    auto addr = &fs;
+    if (f_getfree(pc_name, &free_clusters, &addr) == FR_OK)
+    {
+        return free_clusters * fs.csize * FF_MIN_SS; // FF_MIN_SS should be 512
+    }
     return 0;
+}
+
+FILINFO SDCard::GetFileStats(const char* path) const
+{
+    FILINFO inf;
+    f_stat(path, &inf);
+    return inf;
+}
+
+FILINFO SDCard::GetFileStats() const
+{
+    return GetFileStats(current_file_path);
 }
 
 size_t SDCard::ReadBuffer(void* buffer, size_t max_bytes)
@@ -260,7 +398,7 @@ bool SDCard::ClearFile(uint64_t begin_index)
     return false;
 }
 
-bool SDCard::DeleteFile(const char* file_path)
+bool SDCard::Delete(const char* file_path)
 {
     if (strcmp(current_file_path, file_path) == 0)
     {
@@ -271,7 +409,7 @@ bool SDCard::DeleteFile(const char* file_path)
     return f_unlink(file_path) == FR_OK;
 }
 
-bool SDCard::DeleteFile()
+bool SDCard::Delete()
 {
     if (is_file_open)
     {

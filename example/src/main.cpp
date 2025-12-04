@@ -11,7 +11,8 @@ void sd_card_detect(const Event* ev, void* user_data)
 
 int main()
 {
-    SDCardSDIO card(3, 4);
+    //SDCardSDIO card(3, 4);
+    SDCardSPI card(2, 3, 4, 5);
     SDCardDetector sd_detect(0, &card);
     
     void (*func_ptr)(const Event*, void*) = &sd_card_detect;
