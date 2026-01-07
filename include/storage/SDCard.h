@@ -18,7 +18,7 @@ private:
 protected:
     sd_card_t card;
     
-    DIR directory = {};
+    mutable DIR directory = {};
     FIL file = {};
     mutable FATFS fs;
     const char* current_file_path;
@@ -31,11 +31,11 @@ public:
     FILINFO GetFileStats(const char* path) const;
     FILINFO GetFileStats() const;
 
-    UniqueArray<DirectoryEntry> PeekDirectory(const char* dir_path) override;
-    size_t GetTotalCountInDirectory(const char* dir_path) override;
-    size_t GetFileCountInDirectory(const char* dir_path) override;
-    size_t GetDirectoryCountInDirectory(const char* dir_path) override;
-    DirectoryEntry GetDirectoryEntry(const char* path) override;
+    UniqueArray<DirectoryEntry> PeekDirectory(const char* dir_path) const override;
+    size_t GetTotalCountInDirectory(const char* dir_path) const override;
+    size_t GetFileCountInDirectory(const char* dir_path) const override;
+    size_t GetDirectoryCountInDirectory(const char* dir_path) const override;
+    DirectoryEntry GetDirectoryEntry(const char* path) const override;
 
     bool ChangeDirectory(const char* path) override;
     bool CreateDirectory(const char* dir_path) override;

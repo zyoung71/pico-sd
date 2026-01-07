@@ -55,7 +55,7 @@ SDCard::~SDCard()
     _insts.erase(sd_card_end);
 }
 
-UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path)
+UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path) const
 {
     
     size_t count = 0;
@@ -82,10 +82,11 @@ UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path)
         
         ret[count++] = GetEntryFromFatFsStat(file_info);
     }
+    f_closedir(&directory);
     return std::move(ret);
 }
 
-size_t SDCard::GetTotalCountInDirectory(const char* dir_path) 
+size_t SDCard::GetTotalCountInDirectory(const char* dir_path) const
 {
     
     size_t count = 0;
@@ -99,10 +100,12 @@ size_t SDCard::GetTotalCountInDirectory(const char* dir_path)
             break;
         count++;
     }
+
+    f_closedir(&directory);
     return count;
 }
 
-size_t SDCard::GetFileCountInDirectory(const char* dir_path)
+size_t SDCard::GetFileCountInDirectory(const char* dir_path) const
 {
     
     size_t count = 0;
@@ -120,10 +123,11 @@ size_t SDCard::GetFileCountInDirectory(const char* dir_path)
         
         count++;
     }
+    f_closedir(&directory);
     return count;
 }
 
-size_t SDCard::GetDirectoryCountInDirectory(const char* dir_path)
+size_t SDCard::GetDirectoryCountInDirectory(const char* dir_path) const
 {
     size_t count = 0;
     if (f_opendir(&directory, dir_path) != FR_OK)
@@ -142,7 +146,7 @@ size_t SDCard::GetDirectoryCountInDirectory(const char* dir_path)
     return count;
 }
 
-DirectoryEntry SDCard::GetDirectoryEntry(const char* path)
+DirectoryEntry SDCard::GetDirectoryEntry(const char* path) const
 {
     FILINFO f;
     if (f_stat(path, &f) == FR_OK)
