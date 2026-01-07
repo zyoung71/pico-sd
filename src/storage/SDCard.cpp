@@ -426,7 +426,7 @@ size_t SDCard::AppendCharacter(char c, bool keep_index)
     return 0;
 }
 
-int64_t SDCard::FindNextBuffer(const void* buffer, size_t max_bytes)
+int64_t SDCard::FindNextBuffer(const void* buffer, size_t max_bytes, bool keep_index)
 {
     if (is_file_open)
     {
@@ -434,23 +434,35 @@ int64_t SDCard::FindNextBuffer(const void* buffer, size_t max_bytes)
 
         uint8_t buffer_cmp[max_bytes];
         UINT bytes_read;
-        SeekStep(1);
-        f_read(&file, buffer_cmp, max_bytes, &bytes_read);
-        while ((memcmp(buffer, buffer_cmp, max_bytes) != 0) && !f_eof(&file))
+        f_read(&file, buffer_cmp, max_bytes, &bytes_read); // fill buffer, will be right at the prev fileptr
+        SeekStep(1 - bytes_read); // trace back to original position and shift over one
+        while (1)
         {
             uint8_t b;
-            f_read(&file, &b, 1, &bytes_read);
-            memmove(buffer_cmp, buffer_cmp + 1, max_bytes);
+            f_read(&file, &b, 1, &bytes_read); // read byte
+            memmove(buffer_cmp, buffer_cmp + 1, max_bytes); // shift buffer to the left
             buffer_cmp[max_bytes - 1] = b;
+
+            if (memcmp(buffer, buffer_cmp, max_bytes) != 0)
+            {
+                if (f_eof(&file))
+                {
+                    return -1; // not found
+                }
+            }
+            else
+                break;
         }
+        SeekStep(-max_bytes); // move back to beginning of buffer
         uint64_t found = f_tell(&file);
-        f_lseek(&file, loc); // go back to original position
+        if (keep_index)
+            f_lseek(&file, loc); // go back to original position
         return found;
     }
     return -1;
 }
 
-int64_t SDCard::FindNextString(const char* str)
+int64_t SDCard::FindNextString(const char* str, bool keep_index)
 {
     if (is_file_open)
     {
@@ -459,43 +471,63 @@ int64_t SDCard::FindNextString(const char* str)
         size_t len = strlen(str); // no plus one, as f_read does not add a null terminator
         char str_cmp[len];
         UINT bytes_read;
-        SeekStep(1);
         f_read(&file, str_cmp, len, &bytes_read);
-        while ((strncmp(str_cmp, str, len) != 0) && !f_eof(&file))
+        SeekStep(1 - bytes_read);
+        while (1)
         {
             char c;
             f_read(&file, &c, 1, &bytes_read);
             memmove(str_cmp, str_cmp + 1, len);
             str_cmp[len - 1] = c;
+
+            if (strncmp(str, str_cmp, len) != 0)
+            {
+                if (f_eof(&file))
+                    return -1;
+            }
+            else
+                break;
         }
+        SeekStep(-len);
         uint64_t found = f_tell(&file);
-        f_lseek(&file, loc);
+        if (keep_index)
+            f_lseek(&file, loc);
         return found;
     }
     return -1;
 }
 
-int64_t SDCard::FindNextCharacter(char c)
+int64_t SDCard::FindNextCharacter(char c, bool keep_index)
 {
     if (is_file_open)
     {
         uint64_t loc = f_tell(&file);
         
-        char c_cmp;
         UINT bytes_read;
         SeekStep(1);
-        f_read(&file, &c_cmp, 1, &bytes_read);
-        while ((c_cmp != c) && !f_eof(&file))
+        while (1)
         {
             char c_read;
             f_read(&file, &c_read, 1, &bytes_read);
-            c_cmp = c_read;
+
+            if (c_read != c)
+            {
+                if (f_eof(&file))
+                    return -1;
+            }
+            else
+                break;
         }
+        SeekStep(-1);
+        uint64_t found = f_tell(&file);
+        if (keep_index)
+            f_lseek(&file, loc);
+        return found;
     }
     return -1;
 }
 
-int64_t SDCard::FindPreviousBuffer(const void* buffer, size_t max_bytes)
+int64_t SDCard::FindPreviousBuffer(const void* buffer, size_t max_bytes, bool keep_index)
 {
     if (is_file_open)
     {
@@ -504,7 +536,7 @@ int64_t SDCard::FindPreviousBuffer(const void* buffer, size_t max_bytes)
         uint8_t buffer_cmp[max_bytes];
         UINT bytes_read;
         f_read(&file, buffer_cmp, max_bytes, &bytes_read); // fill the buffer first (will be right at the fptr)
-        SeekStep(-max_bytes - 1); // move back to original and one additional position to read individual chars in loop
+        SeekStep(-bytes_read - 1); // move back to original and one additional position to read individual chars in loop
         while (1)
         {
             uint8_t b;
@@ -524,13 +556,14 @@ int64_t SDCard::FindPreviousBuffer(const void* buffer, size_t max_bytes)
                 break;
         }
         uint64_t found = f_tell(&file);
-        f_lseek(&file, loc);
+        if (keep_index)
+            f_lseek(&file, loc);
         return found;
     }
     return -1;
 }
 
-int64_t SDCard::FindPreviousString(const char* str)
+int64_t SDCard::FindPreviousString(const char* str, bool keep_index)
 {
     if (is_file_open)
     {
@@ -540,7 +573,7 @@ int64_t SDCard::FindPreviousString(const char* str)
         char str_cmp[len];
         UINT bytes_read;
         f_read(&file, str_cmp, len, &bytes_read);
-        SeekStep(-len - 1);
+        SeekStep(-bytes_read - 1);
         while (1)
         {
             char c;
@@ -566,7 +599,7 @@ int64_t SDCard::FindPreviousString(const char* str)
     return -1;
 }
 
-int64_t SDCard::FindPreviousCharacter(char c)
+int64_t SDCard::FindPreviousCharacter(char c, bool keep_index)
 {
     if (is_file_open)
     {
@@ -591,7 +624,8 @@ int64_t SDCard::FindPreviousCharacter(char c)
                 break;
         }
         uint64_t found = f_tell(&file);
-        f_lseek(&file, loc);
+        if (keep_index)
+            f_lseek(&file, loc);
         return found;
     }
     return -1;

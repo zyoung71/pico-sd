@@ -71,12 +71,12 @@ public:
     size_t AppendString(const char* str, bool keep_index = true) override;
     size_t AppendCharacter(char c, bool keep_index = true) override;
 
-    int64_t FindNextBuffer(const void* buffer, size_t max_bytes) override;
-    int64_t FindNextString(const char* str) override;
-    int64_t FindNextCharacter(char c) override;
-    int64_t FindPreviousBuffer(const void* buffer, size_t max_bytes) override;
-    int64_t FindPreviousString(const char* str) override;
-    int64_t FindPreviousCharacter(char c) override;
+    int64_t FindNextBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
+    int64_t FindNextString(const char* str, bool keep_index = true) override;
+    int64_t FindNextCharacter(char c, bool keep_index = true) override;
+    int64_t FindPreviousBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
+    int64_t FindPreviousString(const char* str, bool keep_index = true) override;
+    int64_t FindPreviousCharacter(char c, bool keep_index = true) override;
 
     bool ClearFile(uint64_t begin_index, uint64_t end_index) override;
     bool ClearFile(uint64_t begin_index = 0) override;
