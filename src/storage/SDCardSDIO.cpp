@@ -1,4 +1,4 @@
-#include <sd/SDCardSDIO.h>
+#include <storage/SDCardSDIO.h>
 
 SDCardSDIO::SDCardSDIO(const SDCardSDIO::Pinout& pins, const char* pc_name)
     : SDCard(pc_name), pins(pins)

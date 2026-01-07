@@ -1,29 +1,58 @@
-#include <sd/SDCard.h>
+#include <storage/SDCard.h>
 
-#include <f_util.h>
+#include <algorithm>
 
-SDCard* SDCard::_insts[8] = {nullptr};
+std::vector<SDCard*> SDCard::_insts = std::vector<SDCard*>();
+
+DirectoryEntry SDCard::GetEntryFromFatFsStat(const FILINFO& info)
+{
+    DirectoryEntry entry;
+    strncpy(entry.name, info.fname, 256);
+    entry.date_modified = info.fdate;
+    entry.time_modified = info.ftime;
+    entry.is_readonly = info.fattrib & AM_RDO;
+    entry.is_hidden = info.fattrib & AM_HID;
+    entry.is_system = info.fattrib & AM_SYS;
+    entry.is_archive = info.fattrib & AM_ARC;
+    entry.is_directory = info.fattrib & AM_DIR;
+
+    return entry;
+}
+
+uint32_t SDCard::TranslateFileAccessFlags(uint32_t access)
+{
+    uint32_t mask = 0;
+    if (access & READ)
+        mask |= FA_READ;
+    if (access & WRITE)
+        mask |= FA_WRITE;
+    if (access & OPEN_EXISTING)
+        mask |= FA_OPEN_EXISTING;
+    if (access & OPEN_OVERWRITE)
+        mask |= FA_OPEN_ALWAYS;
+    if (access & OPEN_APPEND)
+        mask |= FA_OPEN_APPEND;
+    if (access & CREATE_NEW)
+        mask |= FA_CREATE_NEW;
+    if (access & CREATE_OVERWRITE)
+        mask |= FA_CREATE_ALWAYS;
+    return mask;
+}
 
 SDCard::SDCard(const char* pc_name)
-    : _this_inst_idx(-1), is_file_open(false),
-    is_mounted(false), pc_name(pc_name),
-    current_file_path(nullptr), stream(this)
+    : StorageDevice(), pc_name(pc_name), current_file_path(nullptr)
 {
-    for (size_t inst_idx = 0; inst_idx < 4; inst_idx++)
-    {
-        if (_insts[inst_idx] == nullptr)
-        {
-            _insts[inst_idx] = this;
-            _this_inst_idx = inst_idx;
-            break;
-        }
-    }
+    _insts.push_back(this);
 }
 
 SDCard::~SDCard()
 {
-    if (_this_inst_idx != -1)
-        _insts[_this_inst_idx] = nullptr;
+    CloseFile();
+    Unmount();
+
+    auto sd_card_end = std::remove(_insts.begin(), _insts.end(), this);
+
+    _insts.erase(sd_card_end);
 }
 
 UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path)
@@ -51,10 +80,7 @@ UniqueArray<DirectoryEntry> SDCard::PeekDirectory(const char* dir_path)
         if (file_info.fname[0] == 0)
             break;
         
-        DirectoryEntry entry;
-        strncpy(entry.name, file_info.fname, 256);
-        entry.attributes_mask = file_info.fattrib;
-        ret[count++] = entry;
+        ret[count++] = GetEntryFromFatFsStat(file_info);
     }
     return std::move(ret);
 }
@@ -116,6 +142,16 @@ size_t SDCard::GetDirectoryCountInDirectory(const char* dir_path)
     return count;
 }
 
+DirectoryEntry SDCard::GetDirectoryEntry(const char* path)
+{
+    FILINFO f;
+    if (f_stat(path, &f) == FR_OK)
+    {
+        return GetEntryFromFatFsStat(f);
+    }
+    return {};
+}
+
 bool SDCard::ChangeDirectory(const char* path)
 {
     return f_chdir(path) == FR_OK;
@@ -156,14 +192,14 @@ bool SDCard::Unmount()
     return false; 
 }
 
-bool SDCard::OpenFile(const char* file_path, uint8_t permissions_mask)
+bool SDCard::OpenFile(const char* file_path, uint32_t access_mask)
 {
     if (is_file_open)
         f_close(&file);
     
     is_file_open = true;
     current_file_path = file_path;
-    return f_open(&file, file_path, permissions_mask) == FR_OK;
+    return f_open(&file, file_path, TranslateFileAccessFlags(access_mask)) == FR_OK;
 }
 
 bool SDCard::CloseFile()
@@ -205,6 +241,15 @@ bool SDCard::SeekEnd()
     return false;
 }
 
+bool SDCard::SeekStep(int64_t d_idx)
+{
+    if (is_file_open)
+    {
+        return f_lseek(&file, f_tell(&file) + d_idx) == FR_OK;
+    }
+    return false;
+}
+
 uint64_t SDCard::GetFileSize(const char* path) const
 {
     return GetFileStats(path).fsize;
@@ -217,16 +262,27 @@ uint64_t SDCard::GetFileSize() const
 
     return GetFileSize(current_file_path);
 }
-#include "ffconf.h"
+
 uint64_t SDCard::GetFreeSpace() const
 {
     DWORD free_clusters;
     auto addr = &fs;
+
     if (f_getfree(pc_name, &free_clusters, &addr) == FR_OK)
     {
         return free_clusters * fs.csize * FF_MIN_SS; // FF_MIN_SS should be 512
     }
     return 0;
+}
+
+uint64_t SDCard::GetTotalSpace() const
+{
+    return (fs.n_fatent - 2) * fs.csize;
+}
+
+float SDCard::GetSpaceUsedPercentage() const
+{
+    return (GetFreeSpace() / (float)GetTotalSpace()) * 100.f;
 }
 
 FILINFO SDCard::GetFileStats(const char* path) const
@@ -256,22 +312,39 @@ char SDCard::ReadCharacter()
 {
     if (is_file_open)
     {
-        char buff[1];
+        char c;
         UINT bytes_read;
-        f_read(&file, buff, 1, &bytes_read);
-        return buff[0];
+        f_read(&file, &c, 1, &bytes_read);
+        return c;
     }
     return '\0';
 }
 
-size_t SDCard::ReadAll(std::unique_ptr<char[]>& buffer)
+size_t SDCard::ReadAll(UniqueArray<char>& buffer)
 {
     if (is_file_open)
     {
         UINT bytes_read;
         uint64_t size = f_size(&file);
-        buffer = std::make_unique<char[]>(size);
-        f_read(&file, buffer.get(), size, &bytes_read);
+        buffer.array = std::make_unique<char[]>(size);
+        f_read(&file, buffer.array.get(), size, &bytes_read);
+        return bytes_read;
+    }
+    return 0;
+}
+
+size_t SDCard::ReadLine(UniqueArray<char>& buffer, bool from_start_of_line)
+{
+    if (is_file_open)
+    {
+        if (from_start_of_line)
+        {
+            int64_t prev_line_end = FindPreviousCharacter('\n');
+            f_lseek(&file, prev_line_end + 1);
+        }
+        char* buff = f_gets(buffer.array.get(), 4096, &file);
+        size_t bytes_read = strlen(buff);
+        buffer.length = bytes_read + 1;
         return bytes_read;
     }
     return 0;
@@ -353,6 +426,177 @@ size_t SDCard::AppendCharacter(char c, bool keep_index)
     return 0;
 }
 
+int64_t SDCard::FindNextBuffer(const void* buffer, size_t max_bytes)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+
+        uint8_t buffer_cmp[max_bytes];
+        UINT bytes_read;
+        SeekStep(1);
+        f_read(&file, buffer_cmp, max_bytes, &bytes_read);
+        while ((memcmp(buffer, buffer_cmp, max_bytes) != 0) && !f_eof(&file))
+        {
+            uint8_t b;
+            f_read(&file, &b, 1, &bytes_read);
+            memmove(buffer_cmp, buffer_cmp + 1, max_bytes);
+            buffer_cmp[max_bytes - 1] = b;
+        }
+        uint64_t found = f_tell(&file);
+        f_lseek(&file, loc); // go back to original position
+        return found;
+    }
+    return -1;
+}
+
+int64_t SDCard::FindNextString(const char* str)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+
+        size_t len = strlen(str); // no plus one, as f_read does not add a null terminator
+        char str_cmp[len];
+        UINT bytes_read;
+        SeekStep(1);
+        f_read(&file, str_cmp, len, &bytes_read);
+        while ((strncmp(str_cmp, str, len) != 0) && !f_eof(&file))
+        {
+            char c;
+            f_read(&file, &c, 1, &bytes_read);
+            memmove(str_cmp, str_cmp + 1, len);
+            str_cmp[len - 1] = c;
+        }
+        uint64_t found = f_tell(&file);
+        f_lseek(&file, loc);
+        return found;
+    }
+    return -1;
+}
+
+int64_t SDCard::FindNextCharacter(char c)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+        
+        char c_cmp;
+        UINT bytes_read;
+        SeekStep(1);
+        f_read(&file, &c_cmp, 1, &bytes_read);
+        while ((c_cmp != c) && !f_eof(&file))
+        {
+            char c_read;
+            f_read(&file, &c_read, 1, &bytes_read);
+            c_cmp = c_read;
+        }
+    }
+    return -1;
+}
+
+int64_t SDCard::FindPreviousBuffer(const void* buffer, size_t max_bytes)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+        
+        uint8_t buffer_cmp[max_bytes];
+        UINT bytes_read;
+        f_read(&file, buffer_cmp, max_bytes, &bytes_read); // fill the buffer first (will be right at the fptr)
+        SeekStep(-max_bytes - 1); // move back to original and one additional position to read individual chars in loop
+        while (1)
+        {
+            uint8_t b;
+            f_read(&file, &b, 1, &bytes_read);
+            memmove(buffer_cmp + 1, buffer_cmp, max_bytes); // shift buffer once to the right
+            buffer_cmp[0] = b;
+            SeekStep(-1); // f_read contradicts. moves it back where it was before read
+        
+            if (memcmp(buffer, buffer_cmp, max_bytes) != 0)
+            {
+                if (f_tell(&file) == 0)
+                    return -1;
+                
+                SeekStep(-1); // after a check for zero, move back again for reading before the last
+            }
+            else
+                break;
+        }
+        uint64_t found = f_tell(&file);
+        f_lseek(&file, loc);
+        return found;
+    }
+    return -1;
+}
+
+int64_t SDCard::FindPreviousString(const char* str)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+
+        size_t len = strlen(str);
+        char str_cmp[len];
+        UINT bytes_read;
+        f_read(&file, str_cmp, len, &bytes_read);
+        SeekStep(-len - 1);
+        while (1)
+        {
+            char c;
+            f_read(&file, &c, 1, &bytes_read);
+            memmove(str_cmp + 1, str_cmp, len);
+            str_cmp[0] = c;
+            SeekStep(-1);
+
+            if (strncmp(str, str_cmp, len) != 0)
+            {
+                if (f_tell(&file) == 0)
+                    return -1;
+
+                SeekStep(-1);
+            }
+            else
+                break;
+        }
+        uint64_t found = f_tell(&file);
+        f_lseek(&file, loc);
+        return found;
+    }
+    return -1;
+}
+
+int64_t SDCard::FindPreviousCharacter(char c)
+{
+    if (is_file_open)
+    {
+        uint64_t loc = f_tell(&file);
+
+        UINT bytes_read;
+        SeekStep(-1);
+        while (1)
+        {
+            char c_cmp;
+            f_read(&file, &c_cmp, 1, &bytes_read);
+            SeekStep(-1);
+
+            if (c != c_cmp)
+            {
+                if (f_tell(&file) == 0)
+                    return -1;
+
+                SeekStep(-1);
+            }
+            else
+                break;
+        }
+        uint64_t found = f_tell(&file);
+        f_lseek(&file, loc);
+        return found;
+    }
+    return -1;
+}
+
 bool SDCard::ClearFile(uint64_t begin_index, uint64_t end_index)
 {
     if (is_file_open)
@@ -419,33 +663,26 @@ bool SDCard::Delete()
     return f_unlink(current_file_path) == FR_OK;
 }
 
-SDCardStream& SDCard::GetStream()
+bool SDCard::Exists(const char* path) const
 {
-    return stream;
+    FILINFO info;
+    return f_stat(path, &info) == FR_OK;
 }
 
 size_t sd_get_num()
 {
-    size_t n = 0;
-    for (int i = 0; i < 4; i++)
-        if (SDCard::_insts[i])
-            n++;
-    return n;
+    return SDCard::_insts.size();
 }
 
 sd_card_t* sd_get_by_num(size_t num)
 {
-    num = num > 3 ? 3 : num;
-    for (; num < 4; num++)
-    {
-        if (SDCard::_insts[num])
-            return &SDCard::_insts[num]->card;
-    }
+    if (num < sd_get_num())
+        return &SDCard::_insts[num]->card;
     return nullptr;
 }
 
-SDCardDetector::SDCardDetector(uint8_t gpio_pin, SDCard* card, bool auto_mount, void* user_data)
-: GPIODeviceDebounce(gpio_pin, Pull::UP, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 100, user_data), card(card), auto_mount(auto_mount)
+SDCardDetector::SDCardDetector(uint8_t gpio_pin, SDCard* card, bool auto_mount)
+: GPIODeviceDebounce(gpio_pin, Pull::UP, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 100), card(card), auto_mount(auto_mount)
 {
 }
 
@@ -466,57 +703,4 @@ void SDCardDetector::HandleIRQ(uint32_t events_triggered_mask)
             }
         }
     }
-}
-
-SDCardStream::SDCardStream(SDCard* card)
-    : card(card)
-{
-}
-
-SDCardStream& SDCardStream::InsertBuffer(const void* buffer, size_t length)
-{
-    card->WriteBuffer(buffer, length);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator<<(const BufferView<void>& buffer)
-{
-    card->WriteBuffer(buffer.buffer, buffer.length);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator<<(const ArrayAccessor<void>& buffer)
-{
-    card->WriteBuffer(buffer.data, buffer.length);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator<<(const char* strbuff)
-{
-    card->WriteString(strbuff);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator<<(char* strbuff)
-{
-    card->WriteString(strbuff);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator<<(char c)
-{
-    card->WriteCharacter(c);
-    return *this;
-}
-
-SDCardStream& SDCardStream::ExtractBuffer(void* buffer, size_t length)
-{
-    card->ReadBuffer(buffer, length);
-    return *this;
-}
-
-SDCardStream& SDCardStream::operator>>(ArrayAccessor<void>& buffer)
-{
-    card->ReadBuffer(buffer.data, buffer.length);
-    return *this;
 }

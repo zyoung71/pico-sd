@@ -8,8 +8,8 @@ public:
     struct Pinout
     {
         const uint8_t clk_pin;
-        const uint8_t miso_pin;
         const uint8_t mosi_pin;
+        const uint8_t miso_pin;
         const uint8_t cs_pin;
     };
 
@@ -22,8 +22,8 @@ private:
     spi_t spi;
 
 public:
-    SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst = spi0, const char* pc_name = "0:");
-    SDCardSPI(uint8_t clk_pin, uint8_t miso_pin, uint8_t mosi_pin, uint8_t cs_pin, spi_inst_t* spi_inst = spi0, const char* pc_name = "0:");
+    SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst = spi0, const char* pc_name = "");
+    SDCardSPI(uint8_t clk_pin, uint8_t mosi_pin, uint8_t miso_pin, uint8_t cs_pin, spi_inst_t* spi_inst = spi0, const char* pc_name = "");
     ~SDCardSPI() = default;
 
 };

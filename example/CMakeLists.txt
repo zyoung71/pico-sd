@@ -29,6 +29,7 @@ set(PICO_PLATFORM rp2350)
 set(PICO_LABEL RP2350)
 endif()
 
+set(PICO_STACK_SIZE 8192)
 include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
 
 # Change the first argument with your project name!
@@ -39,6 +40,7 @@ pico_sdk_init()
 add_subdirectory(../ build)
 
 add_executable(${CMAKE_PROJECT_NAME} src/main.cpp)
+
 
 target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC
     include

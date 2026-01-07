@@ -5,6 +5,7 @@
 class SDCardSDIO : public SDCard
 {
 public:
+    // You MUST reserve pins D0 - 2, D0 + 1, D0 + 2, D0 + 3 on top of the two here.
     struct Pinout
     {
         const uint8_t cmd_pin;
@@ -18,13 +19,12 @@ public:
     static constexpr uint32_t baud_rate = 125 * 1000 * 1000 / 6;
 
 private:
-    // You MUST reserve pins D0 - 2, D0 + 1, D0 + 2, D0 + 3 on top of the two here.
     Pinout pins;
 
     sd_sdio_if_t card_interface;
 
 public:
-    SDCardSDIO(const SDCardSDIO::Pinout& pins, const char* pc_name = "0:");
-    SDCardSDIO(uint8_t cmd_pin, uint8_t d0_pin, const char* pc_name = "0:");
+    SDCardSDIO(const SDCardSDIO::Pinout& pins, const char* pc_name = "");
+    SDCardSDIO(uint8_t cmd_pin, uint8_t d0_pin, const char* pc_name = "");
     ~SDCardSDIO() = default;
 };

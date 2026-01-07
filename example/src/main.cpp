@@ -1,38 +1,61 @@
 #include <stdio.h>
 
-#include <sd/SDCardSDIO.h>
-#include <sd/SDCardSPI.h>
-#include <sd/USBSerialComms.h>
+#include <storage/SDCardSDIO.h>
+#include <storage/SDCardSPI.h>
+
+#include <f_util.h>
 
 void sd_card_detect(const Event* ev, void* user_data)
 {
-    printf("SD Card Connected.\n");
+    GPIOEvent* event = ev->GetEventAsType<GPIOEvent>();
+    if (event->GetEventsTriggeredMask() & GPIO_IRQ_EDGE_RISE)
+        printf("SD Card Connected.\n");
 }
 
 int main()
 {
-    //SDCardSDIO card(3, 4);
-    SDCardSPI card(2, 3, 4, 5);
-    SDCardDetector sd_detect(0, &card);
+    stdio_init_all();
+
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
+
+    puts("Program start.\n");
     
-    void (*func_ptr)(const Event*, void*) = &sd_card_detect;
-    sd_detect.SetActions(&func_ptr, 1);
+    //SDCardSDIO card(3, 4);
+    SDCardSPI card(2, 3, 4, 7);
+    
+    bool ok = card.Mount();
+    printf("Mounted? %d\n", ok);
+    
+    SDCardDetector sd_detect(6, &card);
 
-    card.Mount();
-    card.OpenFile("file.txt", FA_OPEN_ALWAYS | FA_READ | FA_WRITE);
+    int id = sd_detect.AddAction(&sd_card_detect);
 
-    SDCardStream& stream = card.GetStream();
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    card.OpenFile("file.txt", FA_OPEN_APPEND | FA_WRITE);
+
+    puts("Opened file.\n");
+
+    StorageDeviceStream& stream = card.GetStream();
     stream << "write this to card";
     stream << ' ' << 100;
+
+    puts("Wrote data to card.\n");
 
     card.CloseFile();
 
     constexpr size_t chunk_size = 32;
     char buff[chunk_size];
     size_t total_read_size = 0;
+
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+
+    puts("Beginning Loop...\n");
+
     while (1)
     {
-        total_read_size += comms::serial_usb_to_sd_card_nonblocking(stream, chunk_size);
+        tight_loop_contents();
     }
 
     return 0;
