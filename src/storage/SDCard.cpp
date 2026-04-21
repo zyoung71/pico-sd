@@ -707,12 +707,12 @@ bool SDCard::Exists(const char* path) const
     return f_stat(path, &info) == FR_OK;
 }
 
-size_t sd_get_num()
+size_t __attribute__((weak)) sd_get_num()
 {
     return SDCard::_insts.size();
 }
 
-sd_card_t* sd_get_by_num(size_t num)
+sd_card_t* __attribute__((weak)) sd_get_by_num(size_t num)
 {
     if (num < sd_get_num())
         return &SDCard::_insts[num]->card;
@@ -720,8 +720,10 @@ sd_card_t* sd_get_by_num(size_t num)
 }
 
 SDCardDetector::SDCardDetector(uint8_t gpio_pin, SDCard* card, bool auto_mount)
-: GPIODeviceDebounce(gpio_pin, Pull::UP, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 100), card(card), auto_mount(auto_mount)
+: GPIODeviceDebounce(gpio_pin, Pull::DOWN, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 100), card(card), auto_mount(auto_mount)
 {
+    //card->card.use_card_detect = true;
+    //card->card.card_detect_gpio = gpio_pin;
 }
 
 void SDCardDetector::HandleIRQ(uint32_t events_triggered_mask)
@@ -731,6 +733,7 @@ void SDCardDetector::HandleIRQ(uint32_t events_triggered_mask)
         if (debouncer.Allow())
         {
             Event* ev = new GPIOEvent(this, events_triggered_mask);
+            ProcessImmediateActions(ev);
             queue_try_add(&Event::event_queue, &ev);
             if (card && auto_mount)
             {

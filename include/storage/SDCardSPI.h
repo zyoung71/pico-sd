@@ -16,8 +16,6 @@ public:
     static constexpr uint32_t baud_rate = 125 * 1000 * 1000 / 4;
 
 private:
-    Pinout pins;
-
     sd_spi_if_t card_interface;
     spi_t spi;
 

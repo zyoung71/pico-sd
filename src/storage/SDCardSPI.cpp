@@ -1,7 +1,7 @@
 #include <storage/SDCardSPI.h>
 
 SDCardSPI::SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst, const char* pc_name)
-    : SDCard(pc_name), pins(pins)
+    : SDCard(pc_name)
 {
     spi.hw_inst = spi_inst;
     spi.sck_gpio = pins.clk_pin;
@@ -17,6 +17,17 @@ SDCardSPI::SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst, const 
 }
 
 SDCardSPI::SDCardSPI(uint8_t clk_pin, uint8_t mosi_pin, uint8_t miso_pin, uint8_t cs_pin, spi_inst_t* spi_inst, const char* pc_name)
-    : SDCardSPI(Pinout{clk_pin, mosi_pin, miso_pin, cs_pin}, spi_inst, pc_name)
+    : SDCard(pc_name)
 {
+    spi.hw_inst = spi_inst;
+    spi.sck_gpio = clk_pin;
+    spi.mosi_gpio = mosi_pin;
+    spi.miso_gpio = miso_pin;
+    spi.baud_rate = baud_rate;
+
+    card_interface.spi = &spi;
+    card_interface.ss_gpio = cs_pin;
+    
+    card.type = SD_IF_SPI;
+    card.spi_if_p = &card_interface;
 }

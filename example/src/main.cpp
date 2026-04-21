@@ -12,6 +12,9 @@ void sd_card_detect(const Event* ev, void* user_data)
         printf("SD Card Connected.\n");
 }
 
+SDCardSDIO card(3, 4);
+//SDCardSPI card(2, 3, 4, 7);
+
 int main()
 {
     stdio_init_all();
@@ -22,17 +25,17 @@ int main()
 
     puts("Program start.\n");
     
-    //SDCardSDIO card(3, 4);
-    SDCardSPI card(2, 3, 4, 7);
+    SDCardDetector sd_detect(16, &card);
     
     bool ok = card.Mount();
     printf("Mounted? %d\n", ok);
+
+    gpio_put(25, 0);
     
-    SDCardDetector sd_detect(6, &card);
 
     int id = sd_detect.AddAction(&sd_card_detect);
 
-    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+    gpio_put(PICO_DEFAULT_LED_PIN, 1);
     card.OpenFile("file.txt", FA_OPEN_APPEND | FA_WRITE);
 
     puts("Opened file.\n");

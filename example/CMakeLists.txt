@@ -53,3 +53,14 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 pico_enable_stdio_usb(${CMAKE_PROJECT_NAME} 1)
 pico_enable_stdio_uart(${CMAKE_PROJECT_NAME} 1)
 pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
+
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/tmp/upload.sh
+"#!/bin/bash
+sudo openocd -f interface/cmsis-dap.cfg -f target/rp2040.cfg -c \"adapter speed 5000\" -c \"program ${CMAKE_PROJECT_NAME}.elf verify reset exit\"
+")
+
+file(
+    COPY ${CMAKE_CURRENT_BINARY_DIR}/tmp/upload.sh
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+    FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+)

@@ -7,6 +7,10 @@
 
 #include <hw_config.h>
 
+class SDCardDetector;
+
+// Please use this class as STATIC MEMORY. I do not know why,
+// but it will CRASH on mounting if it is not declared outside all functions.
 class SDCard : public StorageDevice
 {
 private:
@@ -88,6 +92,8 @@ public:
 
     friend size_t sd_get_num();
     friend sd_card_t* sd_get_by_num(size_t num);
+
+    friend SDCardDetector;
 };
 
 class SDCardDetector : public GPIODeviceDebounce
