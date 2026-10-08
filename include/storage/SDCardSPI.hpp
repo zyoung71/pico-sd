@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SDCard.h"
+#include "SDCard.hpp"
 
 class SDCardSPI : public SDCard
 {

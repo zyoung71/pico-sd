@@ -1,4 +1,4 @@
-#include <storage/SDCardSPI.h>
+#include <storage/SDCardSPI.hpp>
 
 SDCardSPI::SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst, const char* pc_name)
     : SDCard(pc_name)

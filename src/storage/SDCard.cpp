@@ -1,4 +1,4 @@
-#include <storage/SDCard.h>
+#include <storage/SDCard.hpp>
 
 #include <algorithm>
 
@@ -7,7 +7,7 @@ std::vector<SDCard*> SDCard::_insts = std::vector<SDCard*>();
 DirectoryEntry SDCard::GetEntryFromFatFsStat(const FILINFO& info)
 {
     DirectoryEntry entry;
-    strncpy(entry.name, info.fname, 256);
+    strlcpy(entry.name, info.fname, 256);
     entry.date_modified = info.fdate;
     entry.time_modified = info.ftime;
     entry.is_readonly = info.fattrib & AM_RDO;

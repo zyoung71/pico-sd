@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include <storage/SDCardSDIO.h>
-#include <storage/SDCardSPI.h>
+#include <storage/SDCardSDIO.hpp>
+#include <storage/SDCardSPI.hpp>
 
 #include <f_util.h>
 

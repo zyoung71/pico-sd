@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 
+# Set VSCode Workspace Folder.
+set(VSCODE_WORKSPACE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
 # Using C17 and C++20 by default.
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 20)
@@ -29,8 +32,16 @@ set(PICO_PLATFORM rp2350)
 set(PICO_LABEL RP2350)
 endif()
 
-set(PICO_STACK_SIZE 8192)
 include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
+
+# Clangd file gen
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if (DEFINED VSCODE_WORKSPACE_DIR)
+    file(CREATE_LINK ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${VSCODE_WORKSPACE_DIR}/compile_commands.json SYMBOLIC)
+else()
+    file(CREATE_LINK ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json SYMBOLIC)
+endif()
 
 # Change the first argument with your project name!
 project(pico-sd-impl C CXX ASM)

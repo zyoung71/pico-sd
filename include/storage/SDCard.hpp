@@ -1,7 +1,7 @@
 #pragma once
 
-#include <hardware/GPIODevice.h>
-#include <storage/StorageDevice.h>
+#include <hardware/GPIODevice.hpp>
+#include <storage/StorageDevice.hpp>
 
 #include <vector>
 
@@ -43,7 +43,7 @@ public:
 
     bool ChangeDirectory(const char* path) override;
     bool CreateDirectory(const char* dir_path) override;
-    bool Move(const char* path, const char* new_path); // Move and Rename do the same thing override.
+    bool Move(const char* path, const char* new_path) override; // Move and Rename do the same thing override.
     bool Rename(const char* name, const char* new_name) override;
 
     bool Mount() override;
@@ -78,6 +78,7 @@ public:
     int64_t FindNextBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
     int64_t FindNextString(const char* str, bool keep_index = true) override;
     int64_t FindNextCharacter(char c, bool keep_index = true) override;
+
     int64_t FindPreviousBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
     int64_t FindPreviousString(const char* str, bool keep_index = true) override;
     int64_t FindPreviousCharacter(char c, bool keep_index = true) override;
