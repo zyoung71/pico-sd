@@ -1,8 +1,9 @@
 #pragma once
 
 #include "SDCard.hpp"
+#include <util/SPIDevice.hpp>
 
-class SDCardSPI : public SDCard
+class SDCardSPI : public SDCard, public SPIDevice
 {
 public:
     struct Pinout
@@ -13,7 +14,7 @@ public:
         const uint8_t cs_pin;
     };
 
-    static constexpr uint32_t baud_rate = 125 * 1000 * 1000 / 4;
+    static constexpr uint32_t baud_rate = 125 * 1000 * 1000 / 4; // 1/4 the default CPU clock
 
 private:
     sd_spi_if_t card_interface;

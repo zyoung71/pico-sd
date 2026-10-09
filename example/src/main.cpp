@@ -27,6 +27,7 @@ int main()
     
     SDCardDetector sd_detect(16, &card);
     
+    //card.Prioritize(); // SPI only
     bool ok = card.Mount();
     printf("Mounted? %d\n", ok);
 
