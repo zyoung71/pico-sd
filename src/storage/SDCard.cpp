@@ -194,8 +194,10 @@ bool SDCard::IsMounted() const
 std::unique_ptr<File> SDCard::OpenFile(const char* file_path, uint32_t access_mask)
 {
     std::unique_ptr<FatFSFile> f = std::make_unique<FatFSFile>();
-    f_open(&f->file, file_path, TranslateFileAccessFlags(access_mask));
-    return std::move(f);
+    if (f_open(&f->file, file_path, TranslateFileAccessFlags(access_mask)) == FR_OK)
+        return std::move(f);
+    else
+        return nullptr;
 }
 
 uint64_t SDCard::GetFileSize(const char* path) const
