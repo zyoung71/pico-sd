@@ -3,7 +3,9 @@
 #include "SDCard.hpp"
 #include <util/SPIDevice.hpp>
 
-class SDCardSPI : public SDCard, public SPIDevice
+class SDCardSPI : public SDCard //, public SPIDevice // see comment below
+// extending from SPIDevice is not required as the library used for SD cards
+// automatically handles chip select pins
 {
 public:
     struct Pinout
@@ -24,5 +26,4 @@ public:
     SDCardSPI(const SDCardSPI::Pinout& pins, spi_inst_t* spi_inst = spi0, const char* pc_name = "");
     SDCardSPI(uint8_t clk_pin, uint8_t mosi_pin, uint8_t miso_pin, uint8_t cs_pin, spi_inst_t* spi_inst = spi0, const char* pc_name = "");
     ~SDCardSPI() = default;
-
 };

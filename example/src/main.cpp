@@ -12,8 +12,8 @@ void sd_card_detect(const Event* ev, void* user_data)
         printf("SD Card Connected.\n");
 }
 
-SDCardSDIO card(3, 4);
-//SDCardSPI card(2, 3, 4, 7);
+//SDCardSDIO card(3, 4);
+SDCardSPI card(2, 3, 4, 7);
 
 int main()
 {
@@ -33,21 +33,20 @@ int main()
 
     gpio_put(25, 0);
     
-
     int id = sd_detect.AddAction(&sd_card_detect);
 
     gpio_put(PICO_DEFAULT_LED_PIN, 1);
-    card.OpenFile("file.txt", FA_OPEN_APPEND | FA_WRITE);
+    std::unique_ptr<File> file = card.OpenFile("file.txt", FA_OPEN_APPEND | FA_WRITE);
 
     puts("Opened file.\n");
 
-    StorageDeviceStream& stream = card.GetStream();
+    FileStream& stream = file->GetStream();
     stream << "write this to card";
     stream << ' ' << 100;
 
     puts("Wrote data to card.\n");
 
-    card.CloseFile();
+    file->Close();
 
     constexpr size_t chunk_size = 32;
     char buff[chunk_size];

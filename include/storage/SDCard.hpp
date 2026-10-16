@@ -23,9 +23,7 @@ protected:
     sd_card_t card;
     
     mutable DIR directory = {};
-    FIL file = {};
     mutable FATFS fs;
-    const char* current_file_path;
     const char* pc_name;
 
 public:
@@ -33,7 +31,6 @@ public:
     virtual ~SDCard();
 
     FILINFO GetFileStats(const char* path) const;
-    FILINFO GetFileStats() const;
 
     UniqueArray<DirectoryEntry> PeekDirectory(const char* dir_path) const override;
     size_t GetTotalCountInDirectory(const char* dir_path) const override;
@@ -48,46 +45,16 @@ public:
 
     bool Mount() override;
     bool Unmount() override;
-    bool OpenFile(const char* file_path, uint32_t access_mask) override;
-    bool CloseFile() override;
-    
-    bool Seek(uint64_t index) override;
-    bool SeekStart() override;
-    bool SeekEnd() override;
-    bool SeekStep(int64_t d_idx) override;
+    bool IsMounted() const override;
+
+    std::unique_ptr<File> OpenFile(const char* file_path, uint32_t access_mask) override;
 
     uint64_t GetFileSize(const char* path) const override;
-    uint64_t GetFileSize() const override;
     uint64_t GetFreeSpace() const override;
     uint64_t GetTotalSpace() const override;
     float GetSpaceUsedPercentage() const override;
 
-    size_t ReadBuffer(void* buffer, size_t max_bytes) override;
-    char ReadCharacter() override;
-    size_t ReadAll(UniqueArray<char>& buffer) override;
-    size_t ReadLine(UniqueArray<char>& buffer, bool from_start_of_line = false) override;
-
-    size_t WriteBuffer(const void* buffer, size_t max_bytes) override;
-    size_t WriteString(const char* str) override;
-    size_t WriteCharacter(char c) override;
-
-    size_t AppendBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
-    size_t AppendString(const char* str, bool keep_index = true) override;
-    size_t AppendCharacter(char c, bool keep_index = true) override;
-
-    int64_t FindNextBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
-    int64_t FindNextString(const char* str, bool keep_index = true) override;
-    int64_t FindNextCharacter(char c, bool keep_index = true) override;
-
-    int64_t FindPreviousBuffer(const void* buffer, size_t max_bytes, bool keep_index = true) override;
-    int64_t FindPreviousString(const char* str, bool keep_index = true) override;
-    int64_t FindPreviousCharacter(char c, bool keep_index = true) override;
-
-    bool ClearFile(uint64_t begin_index, uint64_t end_index) override;
-    bool ClearFile(uint64_t begin_index = 0) override;
-
     bool Delete(const char* file_path) override;
-    bool Delete() override;
 
     bool Exists(const char* path) const override;
 

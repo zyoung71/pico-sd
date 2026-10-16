@@ -4,6 +4,7 @@ if (NOT TARGET pico-sd)
         src/storage/SDCard.cpp
         src/storage/SDCardSDIO.cpp
         src/storage/SDCardSPI.cpp
+        src/storage/FatFSFile.cpp
     )
 
     target_include_directories(pico-sd PUBLIC
